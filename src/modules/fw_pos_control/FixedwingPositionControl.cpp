@@ -34,7 +34,7 @@
 #include "FixedwingPositionControl.hpp"
 
 #include <px4_platform_common/events.h>
-
+#include <iostream> //test
 using math::constrain;
 using math::max;
 using math::min;
@@ -171,8 +171,9 @@ void
 FixedwingPositionControl::vehicle_command_poll()
 {
 	vehicle_command_s vehicle_command;
-
+	
 	while (_vehicle_command_sub.update(&vehicle_command)) {
+		std::cout << "command in--------------------------------------" << std::endl; //test
 		if (vehicle_command.command == vehicle_command_s::VEHICLE_CMD_DO_GO_AROUND) {
 			// only abort landing before point of no return (horizontal and vertical)
 			if (_control_mode.flag_control_auto_enabled &&
@@ -184,11 +185,14 @@ FixedwingPositionControl::vehicle_command_poll()
 
 		} else if (vehicle_command.command == vehicle_command_s::VEHICLE_CMD_DO_CHANGE_SPEED) {
 
+			std::cout << "change speed---------------" << std::endl; //test
 			if ((static_cast<uint8_t>(vehicle_command.param1 + .5f) == vehicle_command_s::SPEED_TYPE_AIRSPEED)) {
 				if (vehicle_command.param2 > FLT_EPSILON) {	// param2 is an equivalent airspeed setpoint
-					if (_control_mode_current == FW_POSCTRL_MODE_AUTO) {
+					if (_control_mode_current == FW_POSCTRL_MODE_AUTO) {  
 						_pos_sp_triplet.current.cruising_speed = vehicle_command.param2;
-
+					} else if (_control_mode.flag_control_offboard_enabled){  // test
+						_pos_sp_triplet.current.cruising_speed = vehicle_command.param2;
+						std::cout << "offboard change speed---------------" << std::endl; //test
 					} else if (_control_mode_current == FW_POSCTRL_MODE_MANUAL_ALTITUDE
 						   || _control_mode_current == FW_POSCTRL_MODE_MANUAL_POSITION) {
 						_commanded_manual_airspeed_setpoint = vehicle_command.param2;
@@ -875,7 +879,6 @@ FixedwingPositionControl::control_auto(const float control_interval, const Vecto
 			publishOrbitStatus(current_sp);
 		}
 	}
-
 	switch (position_sp_type) {
 	case position_setpoint_s::SETPOINT_TYPE_IDLE: {
 			_att_sp.thrust_body[0] = 0.0f;
@@ -889,10 +892,12 @@ FixedwingPositionControl::control_auto(const float control_interval, const Vecto
 		}
 
 	case position_setpoint_s::SETPOINT_TYPE_POSITION:
+		// std::cout << "p" << std::endl; //test
 		control_auto_position(control_interval, curr_pos, ground_speed, pos_sp_prev, current_sp);
 		break;
 
 	case position_setpoint_s::SETPOINT_TYPE_VELOCITY:
+		// std::cout << "v" << std::endl;
 		control_auto_velocity(control_interval, curr_pos, ground_speed, current_sp);
 		break;
 
@@ -1097,10 +1102,13 @@ FixedwingPositionControl::control_auto_position(const float control_interval, co
 			}
 		}
 	}
+	// test
+	std::cout<<"cruise speed : " << pos_sp_curr.cruising_speed <<std::endl;
+	std::cout<<"ground speed : " << ground_speed <<std::endl;
 
 	float target_airspeed = adapt_airspeed_setpoint(control_interval, pos_sp_curr.cruising_speed,
 				_performance_model.getMinimumCalibratedAirspeed(getLoadFactor()), ground_speed);
-
+	std::cout<<"target airspeed raw : " << target_airspeed<< std::endl;
 	Vector2f curr_pos_local{_local_pos.x, _local_pos.y};
 	Vector2f curr_wp_local = _global_local_proj_ref.project(pos_sp_curr.lat, pos_sp_curr.lon);
 
@@ -1116,10 +1124,15 @@ FixedwingPositionControl::control_auto_position(const float control_interval, co
 	}
 
 	float roll_body = getCorrectedNpfgRollSetpoint();
-	target_airspeed = _npfg.getAirspeedRef() / _eas2tas;
+	// target_airspeed = _npfg.getAirspeedRef() / _eas2tas;
+
+	std::cout<<"airspeed ref : " << _npfg.getAirspeedRef()<< std::endl; //Nan ?
 
 	float yaw_body = _yaw; // yaw is not controlled, so set setpoint to current yaw
 
+	std::cout << "interval : " << control_interval << std::endl;
+	std::cout << "target_air : " << target_airspeed << std::endl;
+	std::cout << "alt : " << position_sp_alt << std::endl;
 	tecs_update_pitch_throttle(control_interval,
 				   position_sp_alt,
 				   target_airspeed,
@@ -2567,6 +2580,15 @@ FixedwingPositionControl::Run()
 
 		int8_t old_landing_gear_position = _new_landing_gear_position;
 		_new_landing_gear_position = landing_gear_s::GEAR_KEEP; // is overwritten in Takeoff and Land
+		// test
+		if (_control_mode.flag_control_offboard_enabled){
+			_pos_sp_triplet.current.alt = _current_altitude;
+			_pos_sp_triplet.current.type = position_setpoint_s::SETPOINT_TYPE_POSITION; //position
+			
+			control_auto(control_interval, curr_pos, ground_speed, _pos_sp_triplet.previous, _pos_sp_triplet.current, _pos_sp_triplet.next);
+			std::cout << "pos offboard enabled" << std::endl;
+		}
+		// test
 
 		switch (_control_mode_current) {
 		case FW_POSCTRL_MODE_AUTO: {
@@ -2626,7 +2648,6 @@ FixedwingPositionControl::Run()
 				break;
 			}
 		}
-
 
 		if (_control_mode_current != FW_POSCTRL_MODE_OTHER) {
 			Eulerf attitude_setpoint(Quatf(_att_sp.q_d));

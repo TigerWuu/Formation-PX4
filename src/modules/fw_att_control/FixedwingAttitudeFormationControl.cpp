@@ -31,7 +31,7 @@
  *
  ****************************************************************************/
 
-#include "FixedwingAttitudeControl.hpp"
+#include "FixedwingAttitudeFormationControl.hpp"
 #include <iostream> // test
 using namespace time_literals;
 using namespace matrix;
@@ -118,9 +118,17 @@ FixedwingAttitudeControl::vehicle_manual_poll(const float yaw_body)
 }
 
 void
-FixedwingAttitudeControl::vehicle_attitude_setpoint_poll()
-{
-	if (_att_sp_sub.update(&_att_sp)) {
+FixedwingAttitudeControl::vehicle_thrust_setpoint_poll()
+{	
+	// formation
+	if (_tecs_status_sub.update(&_tecs_status)){
+		_rates_sp.thrust_body[0] = _tecs_status.throttle_sp;
+		_rates_sp.thrust_body[1] = 0;
+		_rates_sp.thrust_body[2] = 0;
+	
+		std::cout << "thrust x: " << _tecs_status.throttle_sp << std::endl;
+	}
+	else if (_att_sp_sub.update(&_att_sp)) {
 		_rates_sp.thrust_body[0] = _att_sp.thrust_body[0];
 		_rates_sp.thrust_body[1] = _att_sp.thrust_body[1];
 		_rates_sp.thrust_body[2] = _att_sp.thrust_body[2];
@@ -260,8 +268,9 @@ void FixedwingAttitudeControl::Run()
 		const matrix::Eulerf euler_angles(_R);
 
 		vehicle_manual_poll(euler_angles.psi());
-
-		vehicle_attitude_setpoint_poll();
+		
+		// formation
+		vehicle_thrust_setpoint_poll();
 
 		// vehicle status update must be before the vehicle_control_mode poll, otherwise rate sp are not published during whole transition
 		_vehicle_status_sub.update(&_vehicle_status);
