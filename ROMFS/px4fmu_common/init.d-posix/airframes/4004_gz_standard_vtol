@@ -89,6 +89,11 @@ param set-default FW_T_CLMB_MAX 8
 param set-default FW_T_SINK_MAX 2.7
 param set-default FW_T_SINK_MIN 2.2
 
+# speed set
+param set-default FW_AIRSPD_MAX 28.0
+param set-default FW_AIRSPD_MIN 12.0
+param set-default FW_AIRSPD_TRIM 18.0
+
 param set-default MC_AIRMODE 1
 param set-default MC_ROLLRATE_P 0.3
 param set-default MC_YAW_P 1.6
@@ -104,6 +109,7 @@ param set-default NAV_ACC_RAD 5
 param set-default NAV_DLL_ACT 2
 
 param set-default VT_FWD_THRUST_EN 4
-param set-default VT_F_TRANS_THR 0.3
+# transition throttle 0.3-> 0.6
+param set-default VT_F_TRANS_THR 0.6
 param set-default VT_TYPE 2
 param set-default FD_ESCS_EN 0
