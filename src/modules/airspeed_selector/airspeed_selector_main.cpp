@@ -69,7 +69,7 @@
 
 using namespace time_literals;
 
-static constexpr uint32_t SCHEDULE_INTERVAL{100_ms};	/**< The schedule interval in usec (10 Hz) */
+static constexpr uint32_t SCHEDULE_INTERVAL{100_ms};	/**< The schedule interval in usec (10 Hz) */ // why 10 hz? 10hz -> 50 hz 
 
 using matrix::Dcmf;
 using matrix::Quatf;

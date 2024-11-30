@@ -306,7 +306,8 @@ void Sensors::diff_pres_poll()
 		_diff_pres_temperature_sum += air_temperature_celsius;
 		_baro_pressure_sum += air_data.baro_pressure_pa;
 		_diff_pres_count++;
-
+		
+		// airspeed in 20 hz -> 50 hz
 		if ((_diff_pres_count > 0) && hrt_elapsed_time(&_airspeed_last_publish) >= 50_ms) {
 
 			// average data and apply calibration offset (SENS_DPRES_OFF)
