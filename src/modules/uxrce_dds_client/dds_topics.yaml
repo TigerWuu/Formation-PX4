@@ -73,6 +73,12 @@ publications:
 
   - topic: /fmu/out/vehicle_trajectory_waypoint_desired
     type: px4_msgs::msg::VehicleTrajectoryWaypoint
+# modified    
+  - topic: /fmu/out/airspeed_validated
+    type: px4_msgs::msg::AirspeedValidated
+    
+  - topic: /fmu/out/wind
+    type: px4_msgs::msg::Wind
 
 # Create uORB::Publication
 subscriptions:
