@@ -76,12 +76,12 @@ using uORB::SubscriptionData;
 
 using namespace time_literals;
 
-class FixedwingAttitudeControl final : public ModuleBase<FixedwingAttitudeControl>, public ModuleParams,
+class FixedwingAttitudeFormationControl final : public ModuleBase<FixedwingAttitudeFormationControl>, public ModuleParams,
 	public px4::ScheduledWorkItem
 {
 public:
-	FixedwingAttitudeControl(bool vtol = false);
-	~FixedwingAttitudeControl() override;
+	FixedwingAttitudeFormationControl(bool vtol = false);
+	~FixedwingAttitudeFormationControl() override;
 
 	/** @see ModuleBase */
 	static int task_spawn(int argc, char *argv[]);
@@ -177,4 +177,7 @@ private:
 	void vehicle_thrust_setpoint_poll(); // formation
 	void vehicle_land_detected_poll();
 	float get_airspeed_constrained();
+	// formation
+	float yaw_err{0.0f};
+	float yaw_err_last{0.0f};
 };

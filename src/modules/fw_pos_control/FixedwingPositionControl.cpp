@@ -171,7 +171,7 @@ void
 FixedwingPositionControl::vehicle_command_poll()
 {
 	vehicle_command_s vehicle_command;
-	
+
 	while (_vehicle_command_sub.update(&vehicle_command)) {
 		std::cout << "command in--------------------------------------" << std::endl; //test
 		if (vehicle_command.command == vehicle_command_s::VEHICLE_CMD_DO_GO_AROUND) {
@@ -184,11 +184,9 @@ FixedwingPositionControl::vehicle_command_poll()
 			}
 
 		} else if (vehicle_command.command == vehicle_command_s::VEHICLE_CMD_DO_CHANGE_SPEED) {
-
-			std::cout << "change speed---------------" << std::endl; //test
 			if ((static_cast<uint8_t>(vehicle_command.param1 + .5f) == vehicle_command_s::SPEED_TYPE_AIRSPEED)) {
 				if (vehicle_command.param2 > FLT_EPSILON) {	// param2 is an equivalent airspeed setpoint
-					if (_control_mode_current == FW_POSCTRL_MODE_AUTO) {  
+					if (_control_mode_current == FW_POSCTRL_MODE_AUTO) {
 						_pos_sp_triplet.current.cruising_speed = vehicle_command.param2;
 					} else if (_control_mode.flag_control_offboard_enabled){  // test
 						_pos_sp_triplet.current.cruising_speed = vehicle_command.param2;
@@ -448,6 +446,7 @@ FixedwingPositionControl::tecs_status_publish(float alt_sp, float equivalent_air
 	tecs_status.timestamp = hrt_absolute_time();
 
 	_tecs_status_pub.publish(tecs_status);
+	// std::cout<<"tecs pub..." << std::endl; //test
 }
 
 void
@@ -662,7 +661,6 @@ FixedwingPositionControl::getManualHeightRateSetpoint()
 		height_rate_setpoint = pitch * climb_rate_target;
 
 	}
-
 	return height_rate_setpoint;
 }
 
@@ -1048,14 +1046,20 @@ FixedwingPositionControl::handle_setpoint_type(const position_setpoint_s &pos_sp
 
 	return position_sp_type;
 }
-
 void
-FixedwingPositionControl::control_auto_position(const float control_interval, const Vector2d &curr_pos,
+FixedwingPositionControl::control_auto_position_off(const float control_interval, const Vector2d &curr_pos,
 		const Vector2f &ground_speed, const position_setpoint_s &pos_sp_prev, const position_setpoint_s &pos_sp_curr)
 {
 	const float acc_rad = _npfg.switchDistance(500.0f);
 	float tecs_fw_thr_min;
 	float tecs_fw_thr_max;
+
+	// test
+	if (_att_sp_sub.update(&_att)) {
+		const Eulerf setpoint(Quatf(_att.q_d));
+		theta_s = setpoint.theta();
+		// std::cout << "theta_s : "<< theta_s << std::endl;
+	}
 
 	if (pos_sp_curr.gliding_enabled) {
 		/* enable gliding with this waypoint */
@@ -1103,12 +1107,12 @@ FixedwingPositionControl::control_auto_position(const float control_interval, co
 		}
 	}
 	// test
-	std::cout<<"cruise speed : " << pos_sp_curr.cruising_speed <<std::endl;
-	std::cout<<"ground speed : " << ground_speed <<std::endl;
+	float Vg = sqrt(pow(ground_speed(0),2)+pow(ground_speed(1),2));
+	// std::cout<<"cruise speed : " << pos_sp_curr.cruising_speed <<std::endl;
+	// std::cout<<"ground speed : " << Vg <<std::endl;
 
 	float target_airspeed = adapt_airspeed_setpoint(control_interval, pos_sp_curr.cruising_speed,
 				_performance_model.getMinimumCalibratedAirspeed(getLoadFactor()), ground_speed);
-	std::cout<<"target airspeed raw : " << target_airspeed<< std::endl;
 	Vector2f curr_pos_local{_local_pos.x, _local_pos.y};
 	Vector2f curr_wp_local = _global_local_proj_ref.project(pos_sp_curr.lat, pos_sp_curr.lon);
 
@@ -1126,14 +1130,16 @@ FixedwingPositionControl::control_auto_position(const float control_interval, co
 	float roll_body = getCorrectedNpfgRollSetpoint();
 	// target_airspeed = _npfg.getAirspeedRef() / _eas2tas;
 
-	std::cout<<"airspeed ref : " << _npfg.getAirspeedRef()<< std::endl; //Nan ?
+	// std::cout<<"airspeed ref : " << _npfg.getAirspeedRef()<< std::endl; //Nan ?
+	std::cout<<"target airspeed raw : " << target_airspeed<< std::endl;
 
 	float yaw_body = _yaw; // yaw is not controlled, so set setpoint to current yaw
+	float height_rate_sp = Vg*sinf(theta_s); //test consider ground speed
 
-	std::cout << "interval : " << control_interval << std::endl;
-	std::cout << "target_air : " << target_airspeed << std::endl;
-	std::cout << "alt : " << position_sp_alt << std::endl;
-	tecs_update_pitch_throttle(control_interval,
+	std::cout << "h_rate : " << height_rate_sp << std::endl;
+
+	if (height_rate_sp < 0.01f && height_rate_sp > -0.01f){
+		tecs_update_pitch_throttle(control_interval,
 				   position_sp_alt,
 				   target_airspeed,
 				   radians(_param_fw_p_lim_min.get()),
@@ -1141,7 +1147,112 @@ FixedwingPositionControl::control_auto_position(const float control_interval, co
 				   tecs_fw_thr_min,
 				   tecs_fw_thr_max,
 				   _param_sinkrate_target.get(),
-				   _param_climbrate_target.get());
+				   _param_climbrate_target.get()); //test
+
+	}
+	else{
+		tecs_update_pitch_throttle(control_interval,
+				   position_sp_alt,
+				   target_airspeed,
+				   radians(_param_fw_p_lim_min.get()),
+				   radians(_param_fw_p_lim_max.get()),
+				   tecs_fw_thr_min,
+				   tecs_fw_thr_max,
+				   _param_sinkrate_target.get(),
+				   _param_climbrate_target.get()
+			       ,false, height_rate_sp); //test;
+	}
+
+	const float pitch_body = get_tecs_pitch();
+	const Quatf attitude_setpoint(Eulerf(roll_body, pitch_body, yaw_body));
+	attitude_setpoint.copyTo(_att_sp.q_d);
+}
+
+void
+FixedwingPositionControl::control_auto_position(const float control_interval, const Vector2d &curr_pos,
+		const Vector2f &ground_speed, const position_setpoint_s &pos_sp_prev, const position_setpoint_s &pos_sp_curr)
+{
+	const float acc_rad = _npfg.switchDistance(500.0f);
+	float tecs_fw_thr_min;
+	float tecs_fw_thr_max;
+
+
+	if (pos_sp_curr.gliding_enabled) {
+		/* enable gliding with this waypoint */
+		_tecs.set_speed_weight(2.0f);
+		tecs_fw_thr_min = 0.0;
+		tecs_fw_thr_max = 0.0;
+
+	} else {
+		tecs_fw_thr_min = _param_fw_thr_min.get();
+		tecs_fw_thr_max = _param_fw_thr_max.get();
+	}
+
+	// waypoint is a plain navigation waypoint
+	float position_sp_alt = pos_sp_curr.alt;
+
+	// Altitude first order hold (FOH)
+	if (_position_setpoint_previous_valid &&
+	    ((pos_sp_prev.type == position_setpoint_s::SETPOINT_TYPE_POSITION) ||
+	     (pos_sp_prev.type == position_setpoint_s::SETPOINT_TYPE_LOITER))
+	   ) {
+		const float d_curr_prev = get_distance_to_next_waypoint(pos_sp_curr.lat, pos_sp_curr.lon, pos_sp_prev.lat,
+					  pos_sp_prev.lon);
+
+		// Do not try to find a solution if the last waypoint is inside the acceptance radius of the current one
+		if (d_curr_prev > math::max(acc_rad, fabsf(pos_sp_curr.loiter_radius))) {
+			// Calculate distance to current waypoint
+			const float d_curr = get_distance_to_next_waypoint(pos_sp_curr.lat, pos_sp_curr.lon, _current_latitude,
+					     _current_longitude);
+
+			// Save distance to waypoint if it is the smallest ever achieved, however make sure that
+			// _min_current_sp_distance_xy is never larger than the distance between the current and the previous wp
+			_min_current_sp_distance_xy = math::min(d_curr, _min_current_sp_distance_xy, d_curr_prev);
+
+			// if the minimal distance is smaller than the acceptance radius, we should be at waypoint alt
+			// navigator will soon switch to the next waypoint item (if there is one) as soon as we reach this altitude
+			if (_min_current_sp_distance_xy > math::max(acc_rad, fabsf(pos_sp_curr.loiter_radius))) {
+				// The setpoint is set linearly and such that the system reaches the current altitude at the acceptance
+				// radius around the current waypoint
+				const float delta_alt = (pos_sp_curr.alt - pos_sp_prev.alt);
+				const float grad = -delta_alt / (d_curr_prev - math::max(acc_rad, fabsf(pos_sp_curr.loiter_radius)));
+				const float a = pos_sp_prev.alt - grad * d_curr_prev;
+
+				position_sp_alt = a + grad * _min_current_sp_distance_xy;
+			}
+		}
+	}
+	float target_airspeed = adapt_airspeed_setpoint(control_interval, pos_sp_curr.cruising_speed,
+				_performance_model.getMinimumCalibratedAirspeed(getLoadFactor()), ground_speed);
+	Vector2f curr_pos_local{_local_pos.x, _local_pos.y};
+	Vector2f curr_wp_local = _global_local_proj_ref.project(pos_sp_curr.lat, pos_sp_curr.lon);
+
+	_npfg.setAirspeedNom(target_airspeed * _eas2tas);
+	_npfg.setAirspeedMax(_performance_model.getMaximumCalibratedAirspeed() * _eas2tas);
+
+	if (_position_setpoint_previous_valid && pos_sp_prev.type != position_setpoint_s::SETPOINT_TYPE_TAKEOFF) {
+		Vector2f prev_wp_local = _global_local_proj_ref.project(pos_sp_prev.lat, pos_sp_prev.lon);
+		navigateWaypoints(prev_wp_local, curr_wp_local, curr_pos_local, ground_speed, _wind_vel);
+
+	} else {
+		navigateWaypoint(curr_wp_local, curr_pos_local, ground_speed, _wind_vel);
+	}
+
+	float roll_body = getCorrectedNpfgRollSetpoint();
+	target_airspeed = _npfg.getAirspeedRef() / _eas2tas;
+
+	float yaw_body = _yaw; // yaw is not controlled, so set setpoint to current yaw
+
+	tecs_update_pitch_throttle(control_interval,
+			   position_sp_alt,
+			   target_airspeed,
+			   radians(_param_fw_p_lim_min.get()),
+			   radians(_param_fw_p_lim_max.get()),
+			   tecs_fw_thr_min,
+			   tecs_fw_thr_max,
+			   _param_sinkrate_target.get(),
+			   _param_climbrate_target.get()); //test
+
 	const float pitch_body = get_tecs_pitch();
 	const Quatf attitude_setpoint(Eulerf(roll_body, pitch_body, yaw_body));
 	attitude_setpoint.copyTo(_att_sp.q_d);
@@ -2271,10 +2382,11 @@ FixedwingPositionControl::control_manual_position(const float control_interval, 
 				   _param_fw_thr_min.get(),
 				   throttle_max,
 				   _param_sinkrate_target.get(),
-				   _param_climbrate_target.get(),
-				   false,
-				   height_rate_sp);
+				   _param_climbrate_target.get()
+				   , false, height_rate_sp);
 
+	std::cout<< "pos h_rate : " << height_rate_sp <<std::endl;
+	std::cout<< "cal VA set : " << calibrated_airspeed_sp <<std::endl;
 	if (!_yaw_lock_engaged || fabsf(_manual_control_setpoint.roll) >= HDG_HOLD_MAN_INPUT_THRESH ||
 	    fabsf(_manual_control_setpoint.yaw) >= HDG_HOLD_MAN_INPUT_THRESH) {
 
@@ -2584,8 +2696,8 @@ FixedwingPositionControl::Run()
 		if (_control_mode.flag_control_offboard_enabled){
 			_pos_sp_triplet.current.alt = _current_altitude;
 			_pos_sp_triplet.current.type = position_setpoint_s::SETPOINT_TYPE_POSITION; //position
-			
-			control_auto(control_interval, curr_pos, ground_speed, _pos_sp_triplet.previous, _pos_sp_triplet.current, _pos_sp_triplet.next);
+
+			control_auto_position_off(control_interval, curr_pos, ground_speed, _pos_sp_triplet.previous, _pos_sp_triplet.current);
 			std::cout << "pos offboard enabled" << std::endl;
 		}
 		// test
@@ -2648,7 +2760,7 @@ FixedwingPositionControl::Run()
 				break;
 			}
 		}
-
+		// offboard mode is in FW_POSCTRL_MODE_OTHER
 		if (_control_mode_current != FW_POSCTRL_MODE_OTHER) {
 			Eulerf attitude_setpoint(Quatf(_att_sp.q_d));
 			float roll_body = attitude_setpoint.phi();
@@ -2676,7 +2788,6 @@ FixedwingPositionControl::Run()
 
 				_att_sp.timestamp = hrt_absolute_time();
 				_attitude_sp_pub.publish(_att_sp);
-
 				// only publish status in full FW mode
 				if (_vehicle_status.vehicle_type == vehicle_status_s::VEHICLE_TYPE_FIXED_WING
 				    || _vehicle_status.in_transition_mode) {
@@ -2799,7 +2910,7 @@ FixedwingPositionControl::tecs_update_pitch_throttle(const float control_interva
 		     hgt_rate_sp);
 
 	tecs_status_publish(alt_sp, airspeed_sp, airspeed_rate_estimate, throttle_trim_compensated);
-
+	// std::cout << "tecs update ..." << std::endl; // test
 	if (_tecs_is_running && !_vehicle_status.in_transition_mode
 	    && (_vehicle_status.vehicle_type == vehicle_status_s::VEHICLE_TYPE_FIXED_WING)) {
 		const TECS::DebugOutput &tecs_output{_tecs.getStatus()};

@@ -39,7 +39,7 @@ using namespace matrix;
 using math::constrain;
 using math::radians;
 
-FixedwingAttitudeControl::FixedwingAttitudeControl(bool vtol) :
+FixedwingAttitudeFormationControl::FixedwingAttitudeFormationControl(bool vtol) :
 	ModuleParams(nullptr),
 	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::nav_and_controllers),
 	_attitude_sp_pub(vtol ? ORB_ID(fw_virtual_attitude_setpoint) : ORB_ID(vehicle_attitude_setpoint)),
@@ -49,13 +49,13 @@ FixedwingAttitudeControl::FixedwingAttitudeControl(bool vtol) :
 	parameters_update();
 }
 
-FixedwingAttitudeControl::~FixedwingAttitudeControl()
+FixedwingAttitudeFormationControl::~FixedwingAttitudeFormationControl()
 {
 	perf_free(_loop_perf);
 }
 
 bool
-FixedwingAttitudeControl::init()
+FixedwingAttitudeFormationControl::init()
 {
 	if (!_att_sub.registerCallback()) {
 		PX4_ERR("callback registration failed");
@@ -66,7 +66,7 @@ FixedwingAttitudeControl::init()
 }
 
 void
-FixedwingAttitudeControl::parameters_update()
+FixedwingAttitudeFormationControl::parameters_update()
 {
 	_roll_ctrl.set_time_constant(_param_fw_r_tc.get());
 	_roll_ctrl.set_max_rate(radians(_param_fw_r_rmax.get()));
@@ -85,7 +85,7 @@ FixedwingAttitudeControl::parameters_update()
 }
 
 void
-FixedwingAttitudeControl::vehicle_manual_poll(const float yaw_body)
+FixedwingAttitudeFormationControl::vehicle_manual_poll(const float yaw_body)
 {
 	if (_vcontrol_mode.flag_control_manual_enabled && _in_fw_or_transition_wo_tailsitter_transition) {
 
@@ -118,28 +118,32 @@ FixedwingAttitudeControl::vehicle_manual_poll(const float yaw_body)
 }
 
 void
-FixedwingAttitudeControl::vehicle_thrust_setpoint_poll()
+FixedwingAttitudeFormationControl::vehicle_thrust_setpoint_poll()
 {	
 	// formation
 	if (_tecs_status_sub.update(&_tecs_status)){
 		_rates_sp.thrust_body[0] = _tecs_status.throttle_sp;
 		_rates_sp.thrust_body[1] = 0;
 		_rates_sp.thrust_body[2] = 0;
-	
-		std::cout << "thrust x: " << _tecs_status.throttle_sp << std::endl;
+		// std::cout << "tecs_status" << std::endl;
 	}
 	else if (_att_sp_sub.update(&_att_sp)) {
-		_rates_sp.thrust_body[0] = _att_sp.thrust_body[0];
+		if (isnan(_att_sp.thrust_body[0])){
+			_rates_sp.thrust_body[0] = _tecs_status.throttle_sp;
+		}
+		else{
+			_rates_sp.thrust_body[0] = _att_sp.thrust_body[0];
+		}
+		
 		_rates_sp.thrust_body[1] = _att_sp.thrust_body[1];
 		_rates_sp.thrust_body[2] = _att_sp.thrust_body[2];
-		// std::cout << "thrust x: " << _att_sp.thrust_body[0] << std::endl;
-		// std::cout << "thrust y: " << _att_sp.thrust_body[1] << std::endl;
-		// std::cout << "thrust z: " << _att_sp.thrust_body[2] << std::endl;
+		// std::cout << "att_sp" << std::endl;
 	}
+	// std::cout << "thrust x: " << _rates_sp.thrust_body[0] << std::endl;
 }
 
 void
-FixedwingAttitudeControl::vehicle_land_detected_poll()
+FixedwingAttitudeFormationControl::vehicle_land_detected_poll()
 {
 	if (_vehicle_land_detected_sub.updated()) {
 		vehicle_land_detected_s vehicle_land_detected {};
@@ -150,7 +154,7 @@ FixedwingAttitudeControl::vehicle_land_detected_poll()
 	}
 }
 
-float FixedwingAttitudeControl::get_airspeed_constrained()
+float FixedwingAttitudeFormationControl::get_airspeed_constrained()
 {
 	_airspeed_validated_sub.update();
 	const bool airspeed_valid = PX4_ISFINITE(_airspeed_validated_sub.get().calibrated_airspeed_m_s)
@@ -176,7 +180,7 @@ float FixedwingAttitudeControl::get_airspeed_constrained()
 	return math::constrain(airspeed, _param_fw_airspd_stall.get(), _param_fw_airspd_max.get());
 }
 
-void FixedwingAttitudeControl::Run()
+void FixedwingAttitudeFormationControl::Run()
 {
 	if (should_exit()) {
 		_att_sub.unregisterCallback();
@@ -336,9 +340,34 @@ void FixedwingAttitudeControl::Run()
 
 			if (_vcontrol_mode.flag_control_attitude_enabled && _in_fw_or_transition_wo_tailsitter_transition) {
 				const Eulerf setpoint(Quatf(_att_sp.q_d));
-				const float roll_body = setpoint.phi();
+				// const float roll_body = setpoint.phi();
 				const float pitch_body = setpoint.theta();
+				// test : for real yaw control if in offboard mode control : psi, theta. otherwise control : \phi ,\theta
+				const float yaw_body = setpoint.psi();
+				float roll_body;
+				// float yaw_err_d;
+				if (_vcontrol_mode.flag_control_offboard_enabled){
+					roll_body = yaw_body - euler_angles.psi();
+					yaw_err += roll_body; // integral error
+					// yaw_err_d = yaw_err - yaw_err_last; // differential error
+					// yaw_err_last = yaw_err;
 
+					while (roll_body < -static_cast<float>(M_PI)){
+						roll_body += static_cast<float>(2*M_PI);
+					}
+					while (roll_body > static_cast<float>(M_PI)){
+						roll_body -= static_cast<float>(2*M_PI);
+					}
+					// roll_body = roll_body* 3.5f + yaw_err*0.0000101f + yaw_err_d*0.00001f; // PID gain
+					// roll_body = roll_body* 0.533f + yaw_err*0.0014f + yaw_err_d*1.0f; // PID gain
+					// roll_body = roll_body* 0.3f + yaw_err*0.0001f; // PI gain
+					roll_body = roll_body* 0.3f; // P gain
+				}
+				else{
+					roll_body = setpoint.phi();
+				}
+				
+				// test : for real yaw control
 				if (PX4_ISFINITE(roll_body) && PX4_ISFINITE(pitch_body)) {
 
 					_roll_ctrl.control_roll(roll_body, _yaw_ctrl.get_euler_rate_setpoint(), euler_angles.phi(),
@@ -362,6 +391,7 @@ void FixedwingAttitudeControl::Run()
 					// std::cout << "pitch: " << euler_angles.theta() << std::endl;
 					// std::cout << "roll err: " << euler_angles.phi()-roll_body << std::endl;
 					// std::cout << "pitch err: " << euler_angles.theta()-pitch_body << std::endl;
+					// std::cout << "yaw err: " << euler_angles.psi()-yaw_body << std::endl;
 
 					// std::cout << "roll rate : " << _roll_ctrl.get_body_rate_setpoint() << std::endl;
 					// std::cout << "pitch rate : " << _pitch_ctrl.get_body_rate_setpoint() << std::endl;
@@ -445,7 +475,7 @@ void FixedwingAttitudeControl::Run()
 	perf_end(_loop_perf);
 }
 
-int FixedwingAttitudeControl::task_spawn(int argc, char *argv[])
+int FixedwingAttitudeFormationControl::task_spawn(int argc, char *argv[])
 {
 	bool vtol = false;
 
@@ -455,7 +485,7 @@ int FixedwingAttitudeControl::task_spawn(int argc, char *argv[])
 		}
 	}
 
-	FixedwingAttitudeControl *instance = new FixedwingAttitudeControl(vtol);
+	FixedwingAttitudeFormationControl *instance = new FixedwingAttitudeFormationControl(vtol);
 
 	if (instance) {
 		_object.store(instance);
@@ -476,12 +506,12 @@ int FixedwingAttitudeControl::task_spawn(int argc, char *argv[])
 	return PX4_ERROR;
 }
 
-int FixedwingAttitudeControl::custom_command(int argc, char *argv[])
+int FixedwingAttitudeFormationControl::custom_command(int argc, char *argv[])
 {
 	return print_usage("unknown command");
 }
 
-int FixedwingAttitudeControl::print_usage(const char *reason)
+int FixedwingAttitudeFormationControl::print_usage(const char *reason)
 {
 	if (reason) {
 		PX4_WARN("%s\n", reason);
@@ -504,5 +534,5 @@ fw_att_control is the fixed wing attitude controller.
 
 extern "C" __EXPORT int fw_att_control_main(int argc, char *argv[])
 {
-	return FixedwingAttitudeControl::main(argc, argv);
+	return FixedwingAttitudeFormationControl::main(argc, argv);
 }
