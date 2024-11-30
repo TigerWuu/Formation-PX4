@@ -94,6 +94,8 @@ if(gz-transport_FOUND)
 		baylands
   		lawn
 		rover
+		aruco
+		windyGust
 	)
 
 	# find corresponding airframes

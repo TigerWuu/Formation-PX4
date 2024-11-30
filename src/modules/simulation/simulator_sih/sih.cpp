@@ -215,7 +215,8 @@ void Sih::sensor_step()
 	equations_of_motion(dt);
 
 	reconstruct_sensors_signals(now);
-
+	
+	// airspeed sensor published at 20 Hz
 	if ((_vehicle == VehicleType::FW || _vehicle == VehicleType::TS) && now - _airspeed_time >= 50_ms) {
 		_airspeed_time = now;
 		send_airspeed(now);
