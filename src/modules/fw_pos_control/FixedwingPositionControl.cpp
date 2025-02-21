@@ -2385,8 +2385,8 @@ FixedwingPositionControl::control_manual_position(const float control_interval, 
 				   _param_climbrate_target.get()
 				   , false, height_rate_sp);
 
-	std::cout<< "pos h_rate : " << height_rate_sp <<std::endl;
-	std::cout<< "cal VA set : " << calibrated_airspeed_sp <<std::endl;
+	// std::cout<< "pos h_rate : " << height_rate_sp <<std::endl;
+	// std::cout<< "cal VA set : " << calibrated_airspeed_sp <<std::endl;
 	if (!_yaw_lock_engaged || fabsf(_manual_control_setpoint.roll) >= HDG_HOLD_MAN_INPUT_THRESH ||
 	    fabsf(_manual_control_setpoint.yaw) >= HDG_HOLD_MAN_INPUT_THRESH) {
 

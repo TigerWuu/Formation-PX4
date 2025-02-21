@@ -36,6 +36,7 @@
 #include <drivers/drv_sensor.h>
 #include <lib/drivers/device/Device.hpp>
 #include <lib/geo/geo.h>
+#include <iostream>
 
 using namespace matrix;
 
@@ -51,10 +52,10 @@ SensorAirspeedSim::~SensorAirspeedSim()
 }
 
 bool SensorAirspeedSim::init()
-{	
+{
 	// running on 50 hz
 	// ScheduleOnInterval(20_ms); // 50 Hz
-	// why running on 8 hz? 
+	// why running on 8 hz?
 	ScheduleOnInterval(125_ms); // 8 Hz
 	return true;
 }
@@ -110,7 +111,7 @@ void SensorAirspeedSim::Run()
 	}
 
 	if (_sim_failure.get() == 0) {
-		if (_vehicle_local_position_sub.updated() && _vehicle_global_position_sub.updated() && _vehicle_attitude_sub.updated() && _wind_gz_sub.updated()) {
+		if (_vehicle_local_position_sub.updated() && _vehicle_global_position_sub.updated() && _vehicle_attitude_sub.updated()) {
 
 			vehicle_local_position_s lpos{};
 			_vehicle_local_position_sub.copy(&lpos);
@@ -120,19 +121,11 @@ void SensorAirspeedSim::Run()
 
 			vehicle_attitude_s attitude{};
 			_vehicle_attitude_sub.copy(&attitude);
-			
-			wind_gz_s wind_true{};
-			_wind_gz_sub.copy(&wind_true);
-			
-			
+
+
 			Vector3f local_velocity = Vector3f{lpos.vx, lpos.vy, lpos.vz};
-			// Vector3f body_velocity = Dcmf{Quatf{attitude.q}} .transpose() * local_velocity;
-			
-			Vector3f wind_velocity = Vector3f{wind_true.x, wind_true.y, wind_true.z};
-			
-			// calculate true airspeed
-			Vector3f Va_vec = local_velocity - wind_velocity;
-			float Va = Va_vec.norm();
+			Vector3f body_velocity = Dcmf{Quatf{attitude.q}} .transpose() * local_velocity;
+
 			// device id
 			device::Device::DeviceId device_id;
 			device_id.devid_s.bus_type = device::Device::DeviceBusType::DeviceBusType_SIMULATION;
@@ -147,8 +140,20 @@ void SensorAirspeedSim::Run()
 
 			// calculate differential pressure + noise in hPa
 			const float diff_pressure_noise = (float)generate_wgn() * 0.01f;
-			// float diff_pressure = sign(body_velocity(0)) * 0.005f * air_density  * body_velocity(0) * body_velocity(0) + diff_pressure_noise;
-			float diff_pressure = sign(Va) * 0.005f * air_density  * Va * Va + diff_pressure_noise;
+			float diff_pressure;
+
+			// calculate true airspeed by wind triangle if wind is available
+			if (_wind_gz_sub.updated()){
+				wind_gz_s wind_true{};
+				_wind_gz_sub.copy(&wind_true);
+				Vector3f wind_velocity = Vector3f{wind_true.x, wind_true.y, wind_true.z};
+				Vector3f Va_vec = local_velocity - wind_velocity;  // calculate true airspeed by wind triangle
+				float Va = Va_vec.norm();
+				diff_pressure = sign(Va) * 0.005f * air_density  * Va * Va + diff_pressure_noise;
+			}
+			else{
+				diff_pressure = sign(body_velocity(0)) * 0.005f * air_density  * body_velocity(0) * body_velocity(0) + diff_pressure_noise;
+			}
 
 			differential_pressure_s differential_pressure{};
 			// report.timestamp_sample = time;
