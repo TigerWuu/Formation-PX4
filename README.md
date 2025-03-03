@@ -1,5 +1,11 @@
 # PX4: Fixed-Wing UAV Formation Flight 
-# Contents
+A customized PX4-Autopilot for fixed-wing UAVs formation flight.
+
+_**Key features**_: 
+1. Enable airspeed command under offboard mode.
+2. Control pitch ($\theta$) and heading ($\psi$) angle of a fixed-wing UAV at the same time.
+3. Receive true wind velocity from Gazebo to calculate the true airspeed (Bug fixed) 
+## Contents
 
 * [Requirements](#requirements)
 * [Installation](#installation)
