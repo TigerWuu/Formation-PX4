@@ -150,9 +150,11 @@ void SensorAirspeedSim::Run()
 				Vector3f Va_vec = local_velocity - wind_velocity;  // calculate true airspeed by wind triangle
 				float Va = Va_vec.norm();
 				diff_pressure = sign(Va) * 0.005f * air_density  * Va * Va + diff_pressure_noise;
+				// std::cout << "Va: " << Va << std::endl;
 			}
 			else{
 				diff_pressure = sign(body_velocity(0)) * 0.005f * air_density  * body_velocity(0) * body_velocity(0) + diff_pressure_noise;
+				// std::cout << "body: " << body_velocity(0) << std::endl;
 			}
 
 			differential_pressure_s differential_pressure{};
