@@ -1,16 +1,35 @@
 # PX4: Fixed-Wing UAV Formation Flight 
-
-## Installation
-* Download **PX4 formation simulation package**
-* Download **PX4 Autopilot**
 ## Requirements
 * Ubuntu 22.04 LTS
 * Gz sim Garden 7.9.0
 * ROS2 humble
-* PX4 Autopilot v1.15.0 dev
   
-## Joysticks Control
+## Installation
+* Install [**PX4 formation simulation package**](https://github.com/TigerWuu/PX4_formation_sim)
+
+* Install **PX4 Autopilot**
+  ```
+  cd ~/
+  git clone git@github.com:TigerWuu/Formation-PX4.git --recursive
+  mv ~/Formation-PX4 ~/PX4-Autopilot
+  bash ./PX4-Autopilot/Tools/setup/ubuntu.sh
+  cd PX4-Autopilot/
+  make px4_sitl
+  ```
+* Install [**QGroundControl**](https://docs.qgroundcontrol.com/master/en/qgc-user-guide/getting_started/download_and_install.html)
+  
+## Joysticks (Xbox one) Control
+* Run 
+
+  `ros2 launch control joy.xml`
+* Joystick command mapping
+
+  ![image](https://github.com/user-attachments/assets/5789e5ca-24fc-45f7-89b3-0c15c94bb95f)
+
 ## Formation Control
+Open QGroundControl
+
+`./QGroundControl.AppImage `
 ### Single-UAV
 1. Terminal 1
    
@@ -24,9 +43,9 @@
     `HEADLESS=1 make px4_sitl gz_standard_vtol{world}`
     >  **world lists** :
     > 
-    >  _default
+    >  _default : w/o wind field
     >  
-    >  _windyGust
+    >  _windyGust : w/ wind field
     >
 2. Terminal 2
    
@@ -35,19 +54,14 @@
 3. Terminal 3
 
    `ros2 launch commander formation.xml wind_com:=w2 L_dir:=0.0 trajectory:=C L:=1.0 L2:=0.1 radii:=400.0`
-    >  **Arguments** :
-    > 
-    >  wind_com
-    >  
-    >  L_dir
-    >
-    > trajectory
-    >
-    > L
-    >
-    > L2
-    >
-    > radii
+   
+    **Arguments** :
+    * wind_com: `w1`, `w2`, `none`. wind compensation setting
+    * L_dir: straight line formation flight heading angle [rad]
+    * trajectory : `C`, `L`. `C` means circular orbit, `L` means straight line
+    * L: observer gain L1 
+    * L2: observer gain L2
+    * radii: circular orbit formation flight radius [m]
 
 ### Milti-UAV
 1. Terminal 1
@@ -68,12 +82,18 @@
 2. Terminal 5
 
    `ros2 launch commander formation_multi.xml wind_com:=w2 L_dir:=0.0 trajectory:=C L:=1.0 L2:=0.1 radii:=400.0 leader:=0`
-    >  **Arguments** :
-    >
-    > leader
-    > 
-## Data Visualization
 
+   **Arguments**
+   * leader: `0`, `1`. `0` means all three follower UAVs will maintain a certain configuration with the virtual leader. `1 `means only the first follower UAV maintain a configuration with virtual leader, and the other followers maintain the configuration with the first follower UAV, that is, the first follower UAV will be designated as a real leader.
+ 
+## Data Visualization
+1. Plot with Matlab
+   
+    See https://github.com/TigerWuu/Fixed-Wing-Formation-Control
+2. Plot with real time
+   
+    `ros2 run plotjuggler plotjuggler
+`
 ## Tool
 1. ros2 bag
 2. Plotjuggler
