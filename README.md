@@ -1,4 +1,15 @@
 # PX4: Fixed-Wing UAV Formation Flight 
+# Contents
+
+* [Requirements](#requirements)
+* [Installation](#installation)
+* [Joysticks Control](#joysticks-control)
+* [Formation Control](#formation-control)
+    * [Single-UAV](#single-uav)
+    * [Multi-UAV](#multi-uav)
+* [Data Visualization](#data-visualization)
+* [Tools](#tools)
+  
 ## Requirements
 * Ubuntu 22.04 LTS
 * Gz sim Garden 7.9.0
@@ -18,7 +29,8 @@
   ```
 * Install [**QGroundControl**](https://docs.qgroundcontrol.com/master/en/qgc-user-guide/getting_started/download_and_install.html)
   
-## Joysticks (Xbox one) Control
+## Joysticks Control
+For Xbox one
 * Run 
 
   `ros2 launch control joy.xml`
@@ -56,14 +68,14 @@ Open QGroundControl
    `ros2 launch commander formation.xml wind_com:=w2 L_dir:=0.0 trajectory:=C L:=1.0 L2:=0.1 radii:=400.0`
    
     **Arguments** :
-    * wind_com: `w1`, `w2`, `none`. wind compensation setting
-    * L_dir: straight line formation flight heading angle [rad]
-    * trajectory : `C`, `L`. `C` means circular orbit, `L` means straight line
-    * L: observer gain L1 
-    * L2: observer gain L2
-    * radii: circular orbit formation flight radius [m]
+    * _wind_com_: `w1`, `w2`, `none`. wind compensation setting.
+    * _L_dir_: straight line formation flight heading angle [rad].
+    * _trajectory_ : `C`, `L`. `C` means circular orbit, `L` means straight line.
+    * _L_: observer gain L1.
+    * _L2_: observer gain L2.
+    * _radii_: circular orbit formation flight radius [m].
 
-### Milti-UAV
+### Multi-UAV
 1. Terminal 1
    
     `cd ~/PX4-Autopilot`
@@ -74,17 +86,17 @@ Open QGroundControl
   
     >  **world lists** :
     > 
-    >  default
+    >  default : w/o wind field
     >  
-    >  windyGust
+    >  windyGust : w/ wind field
     >
    
 2. Terminal 5
 
    `ros2 launch commander formation_multi.xml wind_com:=w2 L_dir:=0.0 trajectory:=C L:=1.0 L2:=0.1 radii:=400.0 leader:=0`
 
-   **Arguments**
-   * leader: `0`, `1`. `0` means all three follower UAVs will maintain a certain configuration with the virtual leader. `1 `means only the first follower UAV maintain a configuration with virtual leader, and the other followers maintain the configuration with the first follower UAV, that is, the first follower UAV will be designated as a real leader.
+   **Arguments** :
+   * _leader_: `0`, `1`. `0` means all three follower UAVs will maintain a certain configuration with the virtual leader. `1 `means only the first follower UAV maintain a configuration with virtual leader, and the other followers maintain the configuration with the first follower UAV, that is, the first follower UAV will be designated as a real leader.
  
 ## Data Visualization
 1. Plot with Matlab
@@ -94,6 +106,6 @@ Open QGroundControl
    
     `ros2 run plotjuggler plotjuggler
 `
-## Tool
+## Tools
 1. ros2 bag
 2. Plotjuggler
